@@ -65,14 +65,16 @@ date_processed <- date()
 # labels
 cat("Reading feature and activity meta data...\n")
 features <- read.table(file="UCI HAR Dataset/features.txt", header=FALSE)
-activities <- read.table(file="UCI HAR Dataset/activity_labels.txt", header=FALSE) 
 mean_features <- features[grepl("mean\\(\\)",features[,2]),]
 std_features <- features[grepl("std\\(\\)",features[,2]),]
+activities <- read.table(file="UCI HAR Dataset/activity_labels.txt", header=FALSE) 
+names(activities) <- c("ActivityID", "ActivityLabel")
 
 # test data
 cat("Extracting feature means and standard deviations from test data...\n")
 test_subjects.activities <- read.table(file=paste("./",f,"/",test_files[12],sep=""), header=FALSE)
-names(test_subjects.activities) <- c("Activities")
+names(test_subjects.activities) <- c("ActivityID")
+test_subjects.activities <- merge(x=test_subjects.activities, y=activities, by="ActivityID", all.x=TRUE)
 test_subjects.features <- read.table(file=paste("./",f,"/",test_files[11],sep=""), header=FALSE)
 test_subjects.id <- read.table(file=paste("./",f,"/",test_files[10],sep=""), header=FALSE)
 names(test_subjects.id) <- c("ID")
@@ -88,7 +90,8 @@ test_subjects <- cbind(test_subjects.id, test_subjects.activities, test_subjects
 # train data
 cat("Extracting feature means and standard deviations from training data...\n")
 train_subjects.activities <- read.table(file=paste("./",f,"/",train_files[12],sep=""), header=FALSE)
-names(train_subjects.activities) <- c("Activities")
+names(train_subjects.activities) <- c("ActivityID")
+train_subjects.activities <- merge(x=train_subjects.activities, y=activities, by="ActivityID", all.x=TRUE)
 train_subjects.features <- read.table(file=paste("./",f,"/",train_files[11],sep=""), header=FALSE)
 train_subjects.id <- read.table(file=paste("./",f,"/",train_files[10],sep=""), header=FALSE)
 names(train_subjects.id) <- c("ID")
@@ -106,10 +109,13 @@ train_subjects <- cbind(train_subjects.id, train_subjects.activities, train_subj
 cat("Merging test and training data...\n")
 all_subjects <- rbind(test_subjects, train_subjects)
 my_subjects <- split(all_subjects, f=as.factor(all_subjects$ID))
+my_activities <- split(all_subjects, f=as.factor(all_subjects$ActivityLabel))
+
 #my_subjects <- dlply(all_subjects,.(ID, Activities))
 
-cat("Processed ", nrow(all_subjects), " samples for ", (ncol(all_subjects)-2)/2, " features over a total of ", length(my_subjects), " subjects.\n\n", sep="")
 cat("Means:\n\n")
 print(as.factor(mean_features[[2]]))
 cat("Standard Deviations:\n\n")
 print(as.factor(std_features[[2]]))
+
+cat("Processed ", nrow(all_subjects), " samples for ", (ncol(all_subjects)-2)/2, " features over a total of ", length(my_subjects), " subjects.\n\n", sep="")
