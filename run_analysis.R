@@ -64,10 +64,10 @@ date_processed <- date()
 
 # labels
 cat("Reading feature and activity meta data...\n")
-features <- read.table(file="UCI HAR Dataset/features.txt", header=FALSE)
+features <- read.table(file=paste("./", f, "/features.txt", sep=""), header=FALSE)
 mean_features <- features[grepl("mean\\(\\)",features[,2]),]
 std_features <- features[grepl("std\\(\\)",features[,2]),]
-activities <- read.table(file="UCI HAR Dataset/activity_labels.txt", header=FALSE) 
+activities <- read.table(file=paste("./", f, "/activity_labels.txt", sep=""), header=FALSE) 
 names(activities) <- c("ActivityID", "ActivityLabel")
 
 # test data
