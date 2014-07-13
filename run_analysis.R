@@ -60,3 +60,46 @@ if ((length(train_files) < 1) || (length(test_files) < 1)) {
 
 date_processed <- date()
 
+#t<-read.table(file=paste("./",f,"/",test_files[1],sep=""), header=FALSE)
+#DT<-data.table(t)
+
+# labels
+features <- read.table(file="UCI HAR Dataset/features.txt", header=FALSE)
+activities <- read.table(file="UCI HAR Dataset/activity_labels.txt", header=FALSE) 
+mean_features <- features[grepl("mean\\(\\)",features[,2]),]
+std_features <- features[grepl("std\\(\\)",features[,2]),]
+
+# test data
+test_subjects.activities <- read.table(file=paste("./",f,"/",test_files[12],sep=""), header=FALSE)
+names(test_subjects.activities) <- c("Activities")
+test_subjects.features <- read.table(file=paste("./",f,"/",test_files[11],sep=""), header=FALSE)
+test_subjects.id <- read.table(file=paste("./",f,"/",test_files[10],sep=""), header=FALSE)
+names(test_subjects.id) <- c("ID")
+
+test_subjects.means <- test_subjects.features[,mean_features[[1]]]
+names(test_subjects.means) <- mean_features[[2]]
+
+test_subjects.std <- test_subjects.features[,std_features[[1]]]
+names(test_subjects.std) <- std_features[[2]]
+
+test_subjects <- cbind(test_subjects.id, test_subjects.activities, test_subjects.means, test_subjects.std)
+
+# train data
+train_subjects.activities <- read.table(file=paste("./",f,"/",train_files[12],sep=""), header=FALSE)
+names(train_subjects.activities) <- c("Activities")
+train_subjects.features <- read.table(file=paste("./",f,"/",train_files[11],sep=""), header=FALSE)
+train_subjects.id <- read.table(file=paste("./",f,"/",train_files[10],sep=""), header=FALSE)
+names(train_subjects.id) <- c("ID")
+train_subjects.means <- train_subjects.features[,mean_features[[1]]]
+names(train_subjects.means) <- mean_features[[2]]
+
+train_subjects.std <- train_subjects.features[,std_features[[1]]]
+names(train_subjects.std) <- std_features[[2]]
+
+train_subjects <- cbind(train_subjects.id, train_subjects.activities, train_subjects.means, train_subjects.std)
+
+# merge test and train sets
+
+#require(plyr)
+all_subjects <- rbind(test_subjects, train_subjects)
+#my_subjects <- dlply(all_subjects,.(ID, Activities))
