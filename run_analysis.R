@@ -54,8 +54,7 @@ test_files <- list.files(f, recursive = TRUE, pattern="test.txt$")
 if ((length(train_files) < 1) || (length(test_files) < 1)) {
     stop("Directory ", f, " does not appear to have the data files we need to proceed.\n\n", sep="")
 } else {
-    cat("Found test and train data!\n\n")
-    print(c(train_files, test_files))
+    #print(c(train_files, test_files))
 }
 
 date_processed <- date()
@@ -64,12 +63,14 @@ date_processed <- date()
 #DT<-data.table(t)
 
 # labels
+cat("Reading feature and activity meta data...\n")
 features <- read.table(file="UCI HAR Dataset/features.txt", header=FALSE)
 activities <- read.table(file="UCI HAR Dataset/activity_labels.txt", header=FALSE) 
 mean_features <- features[grepl("mean\\(\\)",features[,2]),]
 std_features <- features[grepl("std\\(\\)",features[,2]),]
 
 # test data
+cat("Extracting feature means and standard deviations from test data...\n")
 test_subjects.activities <- read.table(file=paste("./",f,"/",test_files[12],sep=""), header=FALSE)
 names(test_subjects.activities) <- c("Activities")
 test_subjects.features <- read.table(file=paste("./",f,"/",test_files[11],sep=""), header=FALSE)
@@ -85,6 +86,7 @@ names(test_subjects.std) <- std_features[[2]]
 test_subjects <- cbind(test_subjects.id, test_subjects.activities, test_subjects.means, test_subjects.std)
 
 # train data
+cat("Extracting feature means and standard deviations from training data...\n")
 train_subjects.activities <- read.table(file=paste("./",f,"/",train_files[12],sep=""), header=FALSE)
 names(train_subjects.activities) <- c("Activities")
 train_subjects.features <- read.table(file=paste("./",f,"/",train_files[11],sep=""), header=FALSE)
@@ -101,5 +103,13 @@ train_subjects <- cbind(train_subjects.id, train_subjects.activities, train_subj
 # merge test and train sets
 
 #require(plyr)
+cat("Merging test and training data...\n")
 all_subjects <- rbind(test_subjects, train_subjects)
+my_subjects <- split(all_subjects, f=as.factor(all_subjects$ID))
 #my_subjects <- dlply(all_subjects,.(ID, Activities))
+
+cat("Processed ", nrow(all_subjects), " samples for ", (ncol(all_subjects)-2)/2, " features over a total of ", length(my_subjects), " subjects.\n\n", sep="")
+cat("Means:\n\n")
+print(as.factor(mean_features[[2]]))
+cat("Standard Deviations:\n\n")
+print(as.factor(std_features[[2]]))
