@@ -12,6 +12,10 @@ cat("Searching files in working path ")
 cat(getwd(), "\n\n", sep="")
 data_files <- list.dirs(path = ".", recursive = FALSE, full.names = FALSE)
 
+while (!file.exists("./run_analysis.R")) {
+    stop("Please select the working directory where this script was executed before proceeding.\n")
+}
+
 cat("Enter the number corresponding to the directory where the data resides:\n\n")
 if (length(data_files) > 0) {
     for (i in 1:length(data_files)) {
@@ -51,6 +55,8 @@ if((n >= 0) && (n <= length(data_files))) {
 cat("Examining data in ", f, "...\n\n", sep="")
 train_files <- list.files(f, recursive = TRUE, pattern="train.txt$")
 test_files <- list.files(f, recursive = TRUE, pattern="test.txt$")
+all_files <- list.files(f, recursive = TRUE)
+
 if ((length(train_files) < 1) || (length(test_files) < 1)) {
     stop("Directory ", f, " does not appear to have the data files we need to proceed.\n\n", sep="")
 } else {
@@ -64,20 +70,46 @@ date_processed <- date()
 
 # labels
 cat("Reading feature and activity meta data...\n")
-features <- read.table(file=paste("./", f, "/features.txt", sep=""), header=FALSE)
-mean_features <- features[grepl("mean\\(\\)",features[,2]),]
-std_features <- features[grepl("std\\(\\)",features[,2]),]
-activities <- read.table(file=paste("./", f, "/activity_labels.txt", sep=""), header=FALSE) 
-names(activities) <- c("ActivityID", "ActivityLabel")
+
+if(is.na(index.features <- match(x="features.txt", all_files))) {
+    stop("Unable to find the feature list for the data set.\n")
+} else {
+    features <- read.table(file=paste("./", f, "/", all_files[index.features], sep=""), header=FALSE)
+    mean_features <- features[grepl("mean\\(\\)",features[,2]),]
+    std_features <- features[grepl("std\\(\\)",features[,2]),]   
+}
+
+if(is.na(index.activity_labels <- match(x="activity_labels.txt", all_files))) {
+    stop("Unable to find the feature list for the data set.\n")
+} else {
+    activities <- read.table(file=paste("./", f, "/", all_files[index.activity_labels], sep=""), header=FALSE) 
+    names(activities) <- c("ActivityID", "ActivityLabel")
+    activities$ActivityLabel <- gsub("(^|[[:space:]])([[:alpha:]])", "\\1\\U\\2", gsub("_", tolower(activities$ActivityLabel), replacement=" "), perl=TRUE)
+}
 
 # test data
 cat("Extracting feature means and standard deviations from test data...\n")
-test_subjects.activities <- read.table(file=paste("./",f,"/",test_files[12],sep=""), header=FALSE)
-names(test_subjects.activities) <- c("ActivityID")
-test_subjects.activities <- merge(x=test_subjects.activities, y=activities, by="ActivityID", all.x=TRUE)
-test_subjects.features <- read.table(file=paste("./",f,"/",test_files[11],sep=""), header=FALSE)
-test_subjects.id <- read.table(file=paste("./",f,"/",test_files[10],sep=""), header=FALSE)
-names(test_subjects.id) <- c("ID")
+
+if(is.na(index.test.labels <- match(x="test/y_test.txt", test_files))) {
+    stop("Unable to find the labels for the test set.\n")
+} else {
+    test_subjects.activities <- read.table(file=paste("./",f,"/",test_files[index.test.labels],sep=""), header=FALSE)
+    names(test_subjects.activities) <- c("ActivityID")
+    test_subjects.activities <- merge(x=test_subjects.activities, y=activities, by="ActivityID", all.x=TRUE)
+}
+
+if(is.na(index.test.data_set <- match(x="test/X_test.txt", test_files))) {
+    stop("Unable to find the data for the test set.\n")
+} else {
+    test_subjects.features <- read.table(file=paste("./",f,"/",test_files[index.test.data_set],sep=""), header=FALSE)    
+}
+
+if(is.na(index.test.subject_ids <- match(x="test/subject_test.txt", test_files))) {
+    stop("Unable to find the subject IDs for the test set.\n")
+} else {
+    test_subjects.id <- read.table(file=paste("./",f,"/",test_files[index.test.subject_ids],sep=""), header=FALSE)
+    names(test_subjects.id) <- c("ID")    
+}
 
 test_subjects.means <- test_subjects.features[,mean_features[[1]]]
 names(test_subjects.means) <- mean_features[[2]]
@@ -89,11 +121,24 @@ test_subjects <- cbind(test_subjects.id, test_subjects.activities, test_subjects
 
 # train data
 cat("Extracting feature means and standard deviations from training data...\n")
-train_subjects.activities <- read.table(file=paste("./",f,"/",train_files[12],sep=""), header=FALSE)
+
+if(is.na(index.train.labels <- match(x="train/y_train.txt", train_files))) {
+    stop("Unable to find the labels for the train set.\n")
+}
+
+if(is.na(index.train.data_set <- match(x="train/X_train.txt", train_files))) {
+    stop("Unable to find the data for the train set.\n")
+}
+
+if(is.na(index.train.subject_ids <- match(x="train/subject_train.txt", train_files))) {
+    stop("Unable to find the subject IDs for the test set.\n")
+}
+
+train_subjects.activities <- read.table(file=paste("./",f,"/",train_files[index.train.labels],sep=""), header=FALSE)
 names(train_subjects.activities) <- c("ActivityID")
 train_subjects.activities <- merge(x=train_subjects.activities, y=activities, by="ActivityID", all.x=TRUE)
-train_subjects.features <- read.table(file=paste("./",f,"/",train_files[11],sep=""), header=FALSE)
-train_subjects.id <- read.table(file=paste("./",f,"/",train_files[10],sep=""), header=FALSE)
+train_subjects.features <- read.table(file=paste("./",f,"/",train_files[index.train.data_set],sep=""), header=FALSE)
+train_subjects.id <- read.table(file=paste("./",f,"/",train_files[index.train.subject_ids],sep=""), header=FALSE)
 names(train_subjects.id) <- c("ID")
 train_subjects.means <- train_subjects.features[,mean_features[[1]]]
 names(train_subjects.means) <- mean_features[[2]]
@@ -118,4 +163,4 @@ print(as.factor(mean_features[[2]]))
 cat("Standard Deviations:\n\n")
 print(as.factor(std_features[[2]]))
 
-cat("Processed ", nrow(all_subjects), " samples for ", (ncol(all_subjects)-2)/2, " features over a total of ", length(my_subjects), " subjects.\n\n", sep="")
+cat("Processed ", nrow(all_subjects), " samples for ", length(names(all_subjects))-3, " features over a total of ", length(my_subjects), " subjects.\n\n", sep="")
