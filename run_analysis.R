@@ -12,6 +12,26 @@ summarize_file <- function(filename, data) {
     cat("From ", filename, " processed ", nrow(data), " rows and ", length(names(data)), " columns.\n")
 }
 
+# print out a data frame in fixed width format
+# can't use write.fwf because it doesn't handle column header widths properly
+# http://stackoverflow.com/questions/13590887/print-a-data-frame-with-columns-aligned-as-displayed-in-r
+print.to.file <- function(df, filename) {
+    cnames <- colnames(df)
+    n      <- as.matrix(nchar(cnames))
+    
+    d <- apply(df, 2, format)
+    n <- apply(cbind(n, nchar(d[1,])), 1, max)
+    
+    fmts <- paste0("%",n, "s")
+    for(i in 1:length(cnames)) {
+        cnames[i] <- sprintf(fmts[i], cnames[i])
+        d[,i] <- sprintf(fmts[i], trim(d[,i]))
+    }
+    d <- rbind(cnames, d)
+    write.table(d, filename, quote=F, row.names=F, col.names=F)
+    return(n)
+}
+
 # create a horizontal rule
 hr <- function(l=60) {
     return(paste(makeNstr("-", l), "\n", sep=""))
@@ -242,7 +262,9 @@ my_features <- names(prepared_data[!(names(prepared_data) %in% c("SubjectID", "A
 my_groups <- names(prepared_data[(names(prepared_data) %in% c("SubjectID", "ActivityLabel"))])
 mean_features <- grepl("mean\\(\\)",names(prepared_data))
 std_features <- grepl("std\\(\\)",names(prepared_data))
-additional_features <- c("kind", "feature", "dimension", "measure", "mean_value")
+grouping_features <- c("kind", "feature", "dimension")
+additional_features <- c(grouping_features, "measure", "mean_value")
+tidy_features <- c(my_groups, grouping_features)
 
 # take the averages of the variances, not the original standard deviations
 # per http://stats.stackexchange.com/questions/25848/how-to-sum-a-standard-deviation
@@ -254,36 +276,31 @@ additional_features <- c("kind", "feature", "dimension", "measure", "mean_value"
 # variances <- as.data.frame(apply(prepared_data[,std_features], 2, make_variance))
 # prepared_data <- cbind(prepared_data[,!std_features], variances)
 
-# now tidy up
+# first, calculate the means of the feature measures
 not_tidy <- ddply(prepared_data, c("SubjectID", "ActivityLabel"), function(df) apply(df[,c(my_features)], 2, mean))
-h("Created untidy data set of ", nrow(not_tidy), " rows with ", length(names(not_tidy)), " columns of output.")
+h("Calculated means of feature measures in untidy data set of ", nrow(not_tidy), " rows with ", length(names(not_tidy)), " columns of output.")
 
 # decompose features into multiple variables with two measures (mean and standard deviation)
 variable_list <- sapply(X = my_features, FUN=strsplit, split="-")
 variable_list <- lapply(variable_list, FUN = function(v) { as.factor(c(kind=(if (substring(v[1], 1, 1) == "t") "time" else "frequency"), feature=substring(v[1], 2), dimension=(if(length(v) == 3) v[3] else "none"), measure=(if(v[2] == "std()") "standard deviation" else "mean")))})
-#not_tidy <- cbind(not_tidy, kind="", feature="", dimension="", mean=0.0, standard_deviation=0.0)
 
-# create empty tidy data frame
+# create empty almost tidy data frame
 new_columns <- c(my_groups,additional_features)
-tidy <- data.frame(matrix(vector(), 0, length(new_columns), dimnames=list(c(), new_columns)), stringsAsFactors=F)
+almost_tidy <- data.frame(matrix(vector(), 0, length(new_columns), dimnames=list(c(), new_columns)), stringsAsFactors=F)
 
-# loop over the untidy data set and build up the tidy version
+# loop over the untidy data set and build up the almost tidy version
 for (i in 1:nrow(not_tidy)) {
   new_frame <- cast_row(not_tidy[i,])
   summarize_file(filename=paste("not_tidy row ", i, sep=""), data=new_frame)
-  tidy <- rbind(tidy, new_frame)
+  almost_tidy <- rbind(almost_tidy, new_frame)
 }
 
-tidy$SubjectID <- as.factor(tidy$SubjectID)
-tidy$ActivityLabel <- as.factor(tidy$ActivityLabel)
-tidy$kind <- as.factor(tidy$kind)
-tidy$feature <- as.factor(tidy$feature)
-tidy$dimension <- as.factor(tidy$dimension)
-tidy$measure <- as.factor(tidy$measure)
-
+# tidy up by casting the data frame 
+tidy <- dcast(almost_tidy, SubjectID + ActivityLabel + kind + feature + dimension ~ measure)
 tidy.file <- "UCI_HAR_Dataset.tidy.txt"
+
+# alternatively, print to a fixed width format 
+# tidy.formats <- print.to.file(tidy, tidy.file)
+
 write.table(tidy, tidy.file, sep="\t", quote=FALSE, row.names=FALSE)
 h("Wrote tidy data set of ", nrow(tidy), " rows with ", length(names(tidy)), " columns of output to file ", tidy.file)
-
-
-
