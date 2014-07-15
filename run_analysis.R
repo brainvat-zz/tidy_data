@@ -1,43 +1,82 @@
+######################
+# Utility functions
+######################
 
+# make a repeating string
+makeNstr <- function(str, num) {
+    paste(rep(str, num), collapse="")
+}
+
+# print out row and column counts for a data table
+summarize_file <- function(filename, data) {
+    cat("From ", filename, " processed ", nrow(data), " rows and ", length(names(data)), " columns.\n")
+}
+
+# create a horizontal rule
+hr <- function(l=60) {
+    return(paste(makeNstr("-", l), "\n", sep=""))
+}
+
+# create a header wrapped in horizontal rules
+h <- function(..., above=1, below=1, rule=60) {
+    cat(paste(makeNstr("\n", above), hr(l=rule), ..., "\n", hr(l=rule), makeNstr("\n", below), sep=""))
+}
+
+######################
+# processing functions
+######################
+
+# merge feature and meta data into a data frame
 compile_features <- function(which, path, files, means, stds, activities) {
     
     # fetch the activity labels
     if(is.na(index.labels <- match(x=paste(which, "/y_", which, ".txt", sep=""), files))) {
         stop(paste("Unable to find the labels for the ", which, " set.\n", sep=""))
     } else {
-        subjects.activities <- read.table(file=paste("./", path,"/", files[index.labels],sep=""), header=FALSE)
+        file.labels <- paste("./", path,"/", files[index.labels], sep="")
+        subjects.activities <- read.table(file=file.labels, header=FALSE)
         names(subjects.activities) <- c("ActivityID")
         subjects.activities <- merge(x=subjects.activities, y=activities, by="ActivityID", all.x=TRUE)
+        summarize_file(filename=file.labels, data=subjects.activities)
     }
     
     # fetch the feature data
     if(is.na(index.data_set <- match(x=paste(which, "/X_", which, ".txt", sep=""), files))) {
         stop(paste("Unable to find the data for the ", which, " set.\n", sep=""))
     } else {
-        subjects.features <- read.table(file=paste("./", path,"/", files[index.data_set],sep=""), header=FALSE)    
+        file.subjects.features <- paste("./", path,"/", files[index.data_set], sep="")
+        subjects.features <- read.table(file=file.subjects.features, header=FALSE)    
+        summarize_file(filename=file.subjects.features, data=subjects.features)
     }
     
     # fetch the subject IDs
     if(is.na(index.subject_ids <- match(x=paste(which, "/subject_", which, ".txt", sep=""), files))) {
         stop(paste("Unable to find the subject IDs for the ", which, " set.\n", sep=""))
     } else {
-        subjects.id <- read.table(file=paste("./", path,"/", files[index.subject_ids],sep=""), header=FALSE)
-        names(subjects.id) <- c("ID")    
+        file.subjects.id <- paste("./", path,"/", files[index.subject_ids], sep="")
+        subjects.id <- read.table(file=file.subjects.id, header=FALSE)
+        names(subjects.id) <- c("SubjectID")    
+        summarize_file(filename=file.subjects.id, data=subjects.id)
     }
     
     # prepare the labels for the mean features
     subjects.means <- subjects.features[,means[[1]]]
     names(subjects.means) <- means[[2]]
+    summarize_file(filename="subjects.means (internal data)", data=subjects.means)
     
     # prepare the labels for the standard deviation features
     subjects.std <- subjects.features[,stds[[1]]]
     names(subjects.std) <- stds[[2]]
+    summarize_file(filename="subjects.std (internal data)", data=subjects.std)
     
     # merge everything together into one data frame and return
-    return(cbind(subjects.id, subjects.activities, subjects.means, subjects.std))
+    result <- cbind(subjects.id, subjects.activities, subjects.means, subjects.std)
+    summarize_file(filename="compiled_subjects (internal data)", data=result)
+    return(result)
 }
 
-main <- function() {
+# prompt user for data and compile internal tidy data set
+do_processing <- function() {
     # Prompt the user to specify the directory of the source data, or
     # download the data if has not already been retrieved
     # 
@@ -92,7 +131,7 @@ main <- function() {
     
     # Check to make sure the data file has what we're interested in
     
-    cat("Examining data in ", f, "...\n\n", sep="")
+    h("Examining data in ", f)
     all_files <- list.files(f, recursive = TRUE)
     raw_sample_files <- grep(pattern="Inertial Signals", list.files(f, recursive=TRUE, pattern=".txt$"), value=TRUE)
     
@@ -100,28 +139,34 @@ main <- function() {
         stop("Directory ", f, " does not appear to have the data files we need to proceed.\n\n", sep="")
     }
     
-    cat(paste("Processing data on ", date_processed <- date(), "\n\n", sep=""))
+    date_processed <- date()
+    h("Processing data on ", date_processed)
     
     #t<-read.table(file=paste("./",f,"/",test_files[1],sep=""), header=FALSE)
     #DT<-data.table(t)
     
     # labels
-    cat("Reading feature and activity meta data...\n")
+    h("Reading feature and activity meta data")
+    
     
     if(is.na(index.features <- match(x="features.txt", all_files))) {
         stop("Unable to find the feature list for the data set.\n")
     } else {
-        features <- read.table(file=paste("./", f, "/", all_files[index.features], sep=""), header=FALSE)
+        file.features <- paste("./", f, "/", all_files[index.features], sep="")
+        features <- read.table(file=file.features, header=FALSE)
         mean_features <- features[grepl("mean\\(\\)",features[,2]),]
-        std_features <- features[grepl("std\\(\\)",features[,2]),]   
+        std_features <- features[grepl("std\\(\\)",features[,2]),]
+        summarize_file(filename=file.features, data=features)
     }
     
     if(is.na(index.activity_labels <- match(x="activity_labels.txt", all_files))) {
         stop("Unable to find the feature list for the data set.\n")
     } else {
-        activities <- read.table(file=paste("./", f, "/", all_files[index.activity_labels], sep=""), header=FALSE) 
+        file.activity_labels <- paste("./", f, "/", all_files[index.activity_labels], sep="")
+        activities <- read.table(file=file.activity_labels, header=FALSE) 
         names(activities) <- c("ActivityID", "ActivityLabel")
         activities$ActivityLabel <- gsub("(^|[[:space:]])([[:alpha:]])", "\\1\\U\\2", gsub("_", tolower(activities$ActivityLabel), replacement=" "), perl=TRUE)
+        summarize_file(filename=file.activity_labels, data=activities)
     }
     
     # process test and training data sets
@@ -129,7 +174,7 @@ main <- function() {
     datasets <- c("test", "train")
     for (i in 1:length(datasets)) {
         dataset <- datasets[i]
-        cat("Extracting feature means and standard deviations from ", dataset, " data...\n", sep="")
+        h("Extracting feature means and standard deviations from ", dataset, " data")
         data.list[[i]] <- compile_features(which=dataset, path=f, files=all_files, means=mean_features, stds=std_features, activities=activities)
     }
 
@@ -145,13 +190,51 @@ main <- function() {
         }
     }
 
+    summarize_file(filename="all_subjects (internal data)", data=all_subjects)
     return(all_subjects)
 }
 
+# prepare column names for tidy output
+tidy_names <- function(df) {
+    names <- names(df)    
+}
+
+# make variance from std deviation
+make_variance <- function(n) {
+    n*n
+}
+
+######################
+# Main work script
+######################
+
 # Do the processing
 
-results <- main()
-my_subjects <- split(results, f=as.factor(results$ID))
+library(plyr)
+
+results <- do_processing()
+my_subjects <- split(results, f=as.factor(results$SubjectID))
 my_activities <- split(results, f=as.factor(results$ActivityLabel))
 
-cat("Processed ", nrow(results), " samples for ", length(names(results))-3, " features over a total of ", length(my_subjects), " subjects.\n\n", sep="")
+h("Processed ", nrow(results), " samples for ", length(names(results))-3, " features in ", length(my_activities), " activities over a total of ", length(my_subjects), " subjects.")
+
+# prepare data for taking averages
+prepared_data <- results[,!(names(results) %in% c("ActivityID"))]
+my_features <- names(prepared_data[!(names(prepared_data) %in% c("SubjectID", "ActivityLabel"))])
+my_groups <- names(prepared_data[(names(prepared_data) %in% c("SubjectID", "ActivityLabel"))])
+mean_features <- grepl("mean\\(\\)",names(prepared_data))
+std_features <- grepl("std\\(\\)",names(prepared_data))
+
+# take the averages of the variances, not the original standard deviations
+# per http://stats.stackexchange.com/questions/25848/how-to-sum-a-standard-deviation
+#
+# however, our standard deviations are NORMALIZED to a range of -1,1
+# so I don't think we should follow these rules
+# and instead just take the mean of the values given
+#
+# variances <- as.data.frame(apply(prepared_data[,std_features], 2, make_variance))
+# prepared_data <- cbind(prepared_data[,!std_features], variances)
+
+# now tidy up
+tidy <- ddply(prepared_data, c("SubjectID", "ActivityLabel"), function(df) apply(df[,c(my_features)], 2, mean))
+h("Created tidy data set of ", nrow(tidy), " rows with ", length(names(tidy)), " columns of output.")
