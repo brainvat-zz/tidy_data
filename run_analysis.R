@@ -204,6 +204,24 @@ make_variance <- function(n) {
     n*n
 }
 
+# cast an untidy frame into a tidy one
+cast_row <- function(row) {
+  this_frame <- data.frame(matrix(vector(), 0, length(new_columns), dimnames=list(c(), new_columns)), stringsAsFactors=F)
+  for (i in 3:ncol(not_tidy)) {
+    this_vector <- variable_list[[c(names(not_tidy)[i])]]        
+    new_row <- data.frame(matrix(vector(), 1, length(new_columns), dimnames=list(c(), new_columns)), stringsAsFactors=F)
+    new_row[c("SubjectID")] <- row[c("SubjectID")]  
+    new_row[c("ActivityLabel")] <- row[c("ActivityLabel")]
+    new_row[c("kind")] <- this_vector[c("kind")]
+    new_row[c("feature")] <- this_vector[c("feature")]
+    new_row[c("dimension")] <- this_vector[c("dimension")]
+    new_row[c("measure")] <- this_vector[c("measure")]
+    new_row[c("mean_value")] <- row[i]
+    this_frame <- rbind(this_frame, new_row)
+  }
+  return(this_frame)
+}
+
 ######################
 # Main work script
 ######################
@@ -224,6 +242,7 @@ my_features <- names(prepared_data[!(names(prepared_data) %in% c("SubjectID", "A
 my_groups <- names(prepared_data[(names(prepared_data) %in% c("SubjectID", "ActivityLabel"))])
 mean_features <- grepl("mean\\(\\)",names(prepared_data))
 std_features <- grepl("std\\(\\)",names(prepared_data))
+additional_features <- c("kind", "feature", "dimension", "measure", "mean_value")
 
 # take the averages of the variances, not the original standard deviations
 # per http://stats.stackexchange.com/questions/25848/how-to-sum-a-standard-deviation
@@ -237,10 +256,34 @@ std_features <- grepl("std\\(\\)",names(prepared_data))
 
 # now tidy up
 not_tidy <- ddply(prepared_data, c("SubjectID", "ActivityLabel"), function(df) apply(df[,c(my_features)], 2, mean))
-h("Created tidy data set of ", nrow(tidy), " rows with ", length(names(tidy)), " columns of output.")
+h("Created untidy data set of ", nrow(not_tidy), " rows with ", length(names(not_tidy)), " columns of output.")
 
 # decompose features into multiple variables with two measures (mean and standard deviation)
 variable_list <- sapply(X = my_features, FUN=strsplit, split="-")
 variable_list <- lapply(variable_list, FUN = function(v) { as.factor(c(kind=(if (substring(v[1], 1, 1) == "t") "time" else "frequency"), feature=substring(v[1], 2), dimension=(if(length(v) == 3) v[3] else "none"), measure=(if(v[2] == "std()") "standard deviation" else "mean")))})
+#not_tidy <- cbind(not_tidy, kind="", feature="", dimension="", mean=0.0, standard_deviation=0.0)
+
+# create empty tidy data frame
+new_columns <- c(my_groups,additional_features)
+tidy <- data.frame(matrix(vector(), 0, length(new_columns), dimnames=list(c(), new_columns)), stringsAsFactors=F)
+
+# loop over the untidy data set and build up the tidy version
+for (i in 1:nrow(not_tidy)) {
+  new_frame <- cast_row(not_tidy[i,])
+  summarize_file(filename=paste("not_tidy row ", i, sep=""), data=new_frame)
+  tidy <- rbind(tidy, new_frame)
+}
+
+tidy$SubjectID <- as.factor(tidy$SubjectID)
+tidy$ActivityLabel <- as.factor(tidy$ActivityLabel)
+tidy$kind <- as.factor(tidy$kind)
+tidy$feature <- as.factor(tidy$feature)
+tidy$dimension <- as.factor(tidy$dimension)
+tidy$measure <- as.factor(tidy$measure)
+
+tidy.file <- "UCI_HAR_Dataset.tidy.txt"
+write.table(tidy, tidy.file, sep="\t", quote=FALSE, row.names=FALSE)
+h("Wrote tidy data set of ", nrow(tidy), " rows with ", length(names(tidy)), " columns of output to file ", tidy.file)
+
 
 
