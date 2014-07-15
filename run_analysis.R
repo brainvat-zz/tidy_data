@@ -236,5 +236,11 @@ std_features <- grepl("std\\(\\)",names(prepared_data))
 # prepared_data <- cbind(prepared_data[,!std_features], variances)
 
 # now tidy up
-tidy <- ddply(prepared_data, c("SubjectID", "ActivityLabel"), function(df) apply(df[,c(my_features)], 2, mean))
+not_tidy <- ddply(prepared_data, c("SubjectID", "ActivityLabel"), function(df) apply(df[,c(my_features)], 2, mean))
 h("Created tidy data set of ", nrow(tidy), " rows with ", length(names(tidy)), " columns of output.")
+
+# decompose features into multiple variables with two measures (mean and standard deviation)
+variable_list <- sapply(X = my_features, FUN=strsplit, split="-")
+variable_list <- lapply(variable_list, FUN = function(v) { as.factor(c(kind=(if (substring(v[1], 1, 1) == "t") "time" else "frequency"), feature=substring(v[1], 2), dimension=(if(length(v) == 3) v[3] else "none"), measure=(if(v[2] == "std()") "standard deviation" else "mean")))})
+
+
