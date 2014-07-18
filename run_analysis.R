@@ -2,14 +2,30 @@
 # Utility functions
 ######################
 
-# make a repeating string
+# load dependencies and warn the user
+load_library <- function(lib) {
+    if (!(lib %in% rownames(installed.packages()))) {
+        stop("Please install the package '", lib, "' and try this script again.", sep="")
+    } else {
+        library(lib, character.only=TRUE)
+    }
+}
+
+# make a repeating string, inspired by the makeNstr from the Hmisc package
+# modified to work here without any external library
 makeNstr <- function(str, num) {
+    if (num == 0) return("")
     paste(rep(str, num), collapse="")
 }
 
 # print out row and column counts for a data table
 summarize_file <- function(filename, data) {
-    cat("From ", filename, " processed ", nrow(data), " rows and ", length(names(data)), " columns.\n")
+    log("From ", filename, " processed ", nrow(data), " rows and ", length(names(data)), " columns.")
+}
+
+# logging
+log <- function(..., file="logfile.txt") {
+    cat(paste(..., "\n", sep=""))
 }
 
 # print out a data frame in fixed width format
@@ -38,15 +54,15 @@ hr <- function(l=60) {
 }
 
 # create a header wrapped in horizontal rules
-h <- function(..., above=1, below=1, rule=60) {
-    cat(paste(makeNstr("\n", above), hr(l=rule), ..., "\n", hr(l=rule), makeNstr("\n", below), sep=""))
+h <- function(..., space_above=0, space_below=0, rule=60) {
+    log(makeNstr("\n", space_above), hr(l=rule), ..., "\n", hr(l=rule), makeNstr("\n", space_below))
 }
 
 ######################
 # processing functions
 ######################
 
-# merge feature and meta data into a data frame
+# merge signal and meta data into a data frame
 compile_features <- function(which, path, files, means, stds, activities) {
     
     # fetch the activity labels
@@ -60,7 +76,7 @@ compile_features <- function(which, path, files, means, stds, activities) {
         summarize_file(filename=file.labels, data=subjects.activities)
     }
     
-    # fetch the feature data
+    # fetch the signal data
     if(is.na(index.data_set <- match(x=paste(which, "/X_", which, ".txt", sep=""), files))) {
         stop(paste("Unable to find the data for the ", which, " set.\n", sep=""))
     } else {
@@ -107,8 +123,7 @@ do_processing <- function() {
     destfile <- "UCI HAR Dataset"
     zipfile <- "UCI_HAR_Dataset.zip"
     
-    cat("Searching files in working path ")
-    cat(getwd(), "\n\n", sep="")
+    log("Searching files in working path ", getwd())
     data_files <- list.dirs(path = ".", recursive = FALSE, full.names = FALSE)
     
     if (!file.exists("./run_analysis.R")) {
@@ -166,21 +181,27 @@ do_processing <- function() {
     #DT<-data.table(t)
     
     # labels
-    h("Reading feature and activity meta data")
-    
+    h("Reading signal and activity meta data")
     
     if(is.na(index.features <- match(x="features.txt", all_files))) {
         stop("Unable to find the feature list for the data set.\n")
     } else {
         file.features <- paste("./", f, "/", all_files[index.features], sep="")
         features <- read.table(file=file.features, header=FALSE)
+        features[,2] <- sapply(features[,2], USE.NAMES = FALSE, FUN=function(x) gsub("Mag", " Magnitude", x))
+        features[,2] <- sapply(features[,2], USE.NAMES = FALSE, FUN=function(x) gsub("Jerk", " Jerk", x))
+        features[,2] <- sapply(features[,2], USE.NAMES = FALSE, FUN=function(x) gsub("(t|f)BodyBody", "\\1 BodyBody", x, perl=TRUE))
+        features[,2] <- sapply(features[,2], USE.NAMES = FALSE, FUN=function(x) gsub("BodyGyro", " Body Raw Gyroscope", x))
+        features[,2] <- sapply(features[,2], USE.NAMES = FALSE, FUN=function(x) gsub("BodyAcc", " Body Acceleration", x))
+        features[,2] <- sapply(features[,2], USE.NAMES = FALSE, FUN=function(x) gsub("GravityAcc", " Gravity Acceleration", x))
+        
         mean_features <- features[grepl("mean\\(\\)",features[,2]),]
         std_features <- features[grepl("std\\(\\)",features[,2]),]
         summarize_file(filename=file.features, data=features)
     }
     
     if(is.na(index.activity_labels <- match(x="activity_labels.txt", all_files))) {
-        stop("Unable to find the feature list for the data set.\n")
+        stop("Unable to find the activity list for the data set.\n")
     } else {
         file.activity_labels <- paste("./", f, "/", all_files[index.activity_labels], sep="")
         activities <- read.table(file=file.activity_labels, header=FALSE) 
@@ -194,7 +215,7 @@ do_processing <- function() {
     datasets <- c("test", "train")
     for (i in 1:length(datasets)) {
         dataset <- datasets[i]
-        h("Extracting feature means and standard deviations from ", dataset, " data")
+        h("Extracting signal means and standard deviations from ", dataset, " data")
         data.list[[i]] <- compile_features(which=dataset, path=f, files=all_files, means=mean_features, stds=std_features, activities=activities)
     }
 
@@ -232,9 +253,9 @@ cast_row <- function(row) {
     new_row <- data.frame(matrix(vector(), 1, length(new_columns), dimnames=list(c(), new_columns)), stringsAsFactors=F)
     new_row[c("SubjectID")] <- row[c("SubjectID")]  
     new_row[c("ActivityLabel")] <- row[c("ActivityLabel")]
-    new_row[c("kind")] <- this_vector[c("kind")]
-    new_row[c("feature")] <- this_vector[c("feature")]
-    new_row[c("dimension")] <- this_vector[c("dimension")]
+    new_row[c("Domain")] <- this_vector[c("Domain")]
+    new_row[c("Signal")] <- this_vector[c("Signal")]
+    new_row[c("Axial")] <- this_vector[c("Axial")]
     new_row[c("measure")] <- this_vector[c("measure")]
     new_row[c("mean_value")] <- row[i]
     this_frame <- rbind(this_frame, new_row)
@@ -248,7 +269,8 @@ cast_row <- function(row) {
 
 # Do the processing
 
-library(plyr)
+load_library("plyr")
+load_library("reshape2")
 
 results <- do_processing()
 my_subjects <- split(results, f=as.factor(results$SubjectID))
@@ -262,7 +284,7 @@ my_features <- names(prepared_data[!(names(prepared_data) %in% c("SubjectID", "A
 my_groups <- names(prepared_data[(names(prepared_data) %in% c("SubjectID", "ActivityLabel"))])
 mean_features <- grepl("mean\\(\\)",names(prepared_data))
 std_features <- grepl("std\\(\\)",names(prepared_data))
-grouping_features <- c("kind", "feature", "dimension")
+grouping_features <- c("Domain", "Signal", "Axial")
 additional_features <- c(grouping_features, "measure", "mean_value")
 tidy_features <- c(my_groups, grouping_features)
 
@@ -276,13 +298,13 @@ tidy_features <- c(my_groups, grouping_features)
 # variances <- as.data.frame(apply(prepared_data[,std_features], 2, make_variance))
 # prepared_data <- cbind(prepared_data[,!std_features], variances)
 
-# first, calculate the means of the feature measures
+# first, calculate the means of the signal measures
 not_tidy <- ddply(prepared_data, c("SubjectID", "ActivityLabel"), function(df) apply(df[,c(my_features)], 2, mean))
-h("Calculated means of feature measures in untidy data set of ", nrow(not_tidy), " rows with ", length(names(not_tidy)), " columns of output.")
+h("Calculated means of signal measures in untidy data set of ", nrow(not_tidy), " rows with ", length(names(not_tidy)), " columns of output.")
 
 # decompose features into multiple variables with two measures (mean and standard deviation)
 variable_list <- sapply(X = my_features, FUN=strsplit, split="-")
-variable_list <- lapply(variable_list, FUN = function(v) { as.factor(c(kind=(if (substring(v[1], 1, 1) == "t") "time" else "frequency"), feature=substring(v[1], 2), dimension=(if(length(v) == 3) v[3] else "none"), measure=(if(v[2] == "std()") "standard deviation" else "mean")))})
+variable_list <- lapply(variable_list, FUN = function(v) { as.factor(c(Domain=(if (substring(v[1], 1, 1) == "t") "Time" else "Frequency"), Signal=substring(v[1], 2), Axial=(if(length(v) == 3) v[3] else "na"), measure=(if(v[2] == "std()") "AverageStandardDeviation" else "AverageMean")))})
 
 # create empty almost tidy data frame
 new_columns <- c(my_groups,additional_features)
@@ -296,11 +318,12 @@ for (i in 1:nrow(not_tidy)) {
 }
 
 # tidy up by casting the data frame 
-tidy <- dcast(almost_tidy, SubjectID + ActivityLabel + kind + feature + dimension ~ measure)
+tidy <- dcast(almost_tidy, SubjectID + ActivityLabel + Domain + Signal + Axial ~ measure)
+names(tidy)[names(tidy) == "mean"] <- "Mean"
 tidy.file <- "UCI_HAR_Dataset.tidy.txt"
 
 # alternatively, print to a fixed width format 
-# tidy.formats <- print.to.file(tidy, tidy.file)
+#tidy.formats <- print.to.file(tidy, tidy.file)
 
 write.table(tidy, tidy.file, sep="\t", quote=FALSE, row.names=FALSE)
 h("Wrote tidy data set of ", nrow(tidy), " rows with ", length(names(tidy)), " columns of output to file ", tidy.file)
