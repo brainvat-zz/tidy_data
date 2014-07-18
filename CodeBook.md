@@ -11,6 +11,38 @@ The script will detect whether or not the data it needs to process has already b
 
 Finally, the code does some basic error checking to make sure the data files it requires have been successfully loaded into the working directory.
 
+## Data dictionary ##
+
+*run_analysis.R* produces a summarized set consisting of 5 variables and 2 measures:
+
+* **SubjectID** - the ID of the original subject from the UCI study, one of 30 individuals
+* **ActivityLabel** - a description of the activity observed in the subject, one of 6 actions including:
+    - Walking,
+    - Walking Upstairs,
+    - Walking Downstairs,
+    - Sitting,
+    - Standing, or 
+    - Laying
+* **Domain** - the domain of the summary measure, either Time or Frequency series
+* **Signal** - the raw or dervied measure observed by the original researchers, one of 13 features including:
+    - Body Acceleration,
+    - Gravity Acceleration,
+    - Body Acceleration Jerk,
+    - Body Raw Gyroscope,
+    - Body Raw Gyroscope Jerk,
+    - Body Acceleration Magnitude,
+    - Gravity Acceleration Magnitude,
+    - Body Acceleration Jerk Magnitude,
+    - Body Raw Gyroscope Magnitude,
+    - Body Raw Gyroscope Jerk Magnitude,
+    - Body Body Acceleration Jerk Magnitude,
+    - Body Body Raw Gyroscope Magnitude, or
+    - Body Body Raw Gyroscope Jerk Magnitude
+* **Axial** - the axial dimension of the raw measurement, either X, Y or Z for the accelerometer or gyroscope; the value is "na" for measures where there are no axial components
+* **AverageMean** - the average of the recorded normalized feature means as observed by the original researchers 
+* **AverageStandardDeviation** - the average of the recorded normalized feature standard deviations as observed by the original researchers
+
+
 ## Script structure ##
 
 The script begins executing its task immediately after being sourced into the shell.  The user does not need to provide any script parameters or environment variables.  This ensures that the final output data the user obtains is identical to the output produced for the original programmer and for other students.
